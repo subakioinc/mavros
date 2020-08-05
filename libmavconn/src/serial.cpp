@@ -44,11 +44,10 @@ MAVConnSerial::MAVConnSerial(uint8_t system_id, uint8_t component_id,
 	tx_q {},
 	rx_buf {},
 	io_service(),
-	serial_dev(io_service),
-	communication_type(0)
+	serial_dev(io_service)
 {
 	using SPB = boost::asio::serial_port_base;
-
+	communication_type = 0;
 	CONSOLE_BRIDGE_logInform(PFXd "device: %s @ %d bps", conn_id, device.c_str(), baudrate);
 
 	try {
