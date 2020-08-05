@@ -76,7 +76,8 @@ MAVConnUDP::MAVConnUDP(uint8_t system_id, uint8_t component_id,
 	io_service(),
 	io_work(new io_service::work(io_service)),
 	socket(io_service),
-	permanent_broadcast(false)
+	permanent_broadcast(false),
+	communication_type(1)
 {
 	using udps = boost::asio::ip::udp::socket;
 

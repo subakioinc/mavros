@@ -83,7 +83,8 @@ MAVConnTCPClient::MAVConnTCPClient(uint8_t system_id, uint8_t component_id,
 	rx_buf {},
 	io_service(),
 	io_work(new io_service::work(io_service)),
-	socket(io_service)
+	socket(io_service),
+	communication_type(2)
 {
 	if (!resolve_address_tcp(io_service, conn_id, server_host, server_port, server_ep))
 		throw DeviceError("tcp: resolve", "Bind address resolve failed");

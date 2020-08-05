@@ -109,10 +109,63 @@ void MAVConnInterface::parse_buffer(const char *pfx, uint8_t *buf, const size_t 
 			log_recv(pfx, message, msg_received);
 
 			if (message_received_cb)
+			{
+				if(communication_type ==0) { //serial (PX4 -> mavros)
+					encrypt_and_crcupdate(&message);
+				} else if (communication_type = 1) { // UDP (QGC -> mavros)
+					decrypt_and_crcupdate(&message);
+				} else {  // TCP nothing to do 
+
+				}
 				message_received_cb(&message, msg_received);
+			}
 		}
 	}
 }
+
+
+void MAVConnInterface::encrypt_and_crcupdate(mavlink::mavlink_message_t *msg)
+{
+	crcs[36] = 222;
+	crcs[83] = 22;
+	crcs[111] = 34;
+	crcs[140] = 181;
+	crcs[141] = 47;
+	crcs[231] = 105;
+	crcs[245] = 130;
+	crcs[331] = 91;
+	//printf("처음 : msg->payload64, msg->crc : %lld , %d \n", msg->payload64[0], msg->checksum);
+	//uint64_t check_value = msg->payload64[0] & 0xff;
+	//printf("메시지 초기값 : %lld", check_value);
+	uint16_t init_checksum = msg->checksum;
+	uint64_t firstItem = msg->payload64[0];
+	firstItem = firstItem ^ 0xff;
+	msg->payload64[0] = firstItem;
+	
+	crcupdate(msg);
+}
+
+void MAVConnInterface::decrypt_and_crcupdate(mavlink::mavlink_message_t *msg)
+{
+	crcs[36] = 222;
+	crcs[83] = 22;
+	crcs[111] = 34;
+	crcs[140] = 181;
+	crcs[141] = 47;
+	crcs[231] = 105;
+	crcs[245] = 130;
+	crcs[331] = 91;
+	//printf("처음 : msg->payload64, msg->crc : %lld , %d \n", msg->payload64[0], msg->checksum);
+	//uint64_t check_value = msg->payload64[0] & 0xff;
+	//printf("메시지 초기값 : %lld", check_value);
+	uint16_t init_checksum = msg->checksum;
+	uint64_t firstItem = msg->payload64[0];
+	firstItem = firstItem ^ 0xff;
+	msg->payload64[0] = firstItem;
+	
+	crcupdate(msg);
+}
+
 
 void MAVConnInterface::log_recv(const char *pfx, mavlink_message_t &msg, Framing framing)
 {

@@ -44,7 +44,8 @@ MAVConnSerial::MAVConnSerial(uint8_t system_id, uint8_t component_id,
 	tx_q {},
 	rx_buf {},
 	io_service(),
-	serial_dev(io_service)
+	serial_dev(io_service),
+	communication_type(0)
 {
 	using SPB = boost::asio::serial_port_base;
 
