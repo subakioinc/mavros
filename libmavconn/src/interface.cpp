@@ -347,14 +347,6 @@ void MAVConnInterface::parse_buffer(const char *pfx, uint8_t *buf, const size_t 
 
 void MAVConnInterface::encrypt_and_crcupdate(mavlink::mavlink_message_t *msg)
 {
-	crcs[36] = 222;
-	crcs[83] = 22;
-	crcs[111] = 34;
-	crcs[140] = 181;
-	crcs[141] = 47;
-	crcs[231] = 105;
-	crcs[245] = 130;
-	crcs[331] = 91;
 	//printf("처음 : msg->payload64, msg->crc : %lld , %d \n", msg->payload64[0], msg->checksum);
 	//uint64_t check_value = msg->payload64[0] & 0xff;
 	//printf("메시지 초기값 : %lld", check_value);
@@ -368,14 +360,6 @@ void MAVConnInterface::encrypt_and_crcupdate(mavlink::mavlink_message_t *msg)
 
 void MAVConnInterface::decrypt_and_crcupdate(mavlink::mavlink_message_t *msg)
 {
-	crcs[36] = 222;
-	crcs[83] = 22;
-	crcs[111] = 34;
-	crcs[140] = 181;
-	crcs[141] = 47;
-	crcs[231] = 105;
-	crcs[245] = 130;
-	crcs[331] = 91;
 	//printf("처음 : msg->payload64, msg->crc : %lld , %d \n", msg->payload64[0], msg->checksum);
 	//uint64_t check_value = msg->payload64[0] & 0xff;
 	//printf("메시지 초기값 : %lld", check_value);
