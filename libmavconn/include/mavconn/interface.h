@@ -34,6 +34,7 @@
 #include <cassert>
 #include <stdexcept>
 #include <unordered_map>
+#include <map>
 #include <mavconn/mavlink_dialect.h>
 
 
