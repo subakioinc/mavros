@@ -49,9 +49,23 @@ add_library(mavconn
   src/tcp.cpp
   src/udp.cpp
 )
+
+add_library(mavros_dalpu_crypto STATIC 
+  src/dalpu/aes.c
+  src/dalpu/aes_aria.c
+  src/dalpu/aria.c
+  src/dalpu/ecc.c
+  src/dalpu/sha.c
+  src/dalpu/hardware/power.c
+  src/dalpu/hardware/spi.c
+  src/dalpu/hardware/state.c
+  src/dalpu/hardware/tls.c
+)
+
 target_link_libraries(mavconn
   ${Boost_LIBRARIES}
   ${console_bridge_LIBRARIES}
+  mavros_dalpu_crypto
 )
 
 # Use catkin-supplied em_expand macros to generate source files

@@ -24,6 +24,7 @@
 #include <mavconn/serial.h>
 #include <mavconn/udp.h>
 #include <mavconn/tcp.h>
+#include <dalpu/aes.h>
 
 namespace mavconn {
 #define PFX	"mavconn: "
