@@ -24,6 +24,7 @@
 #include <mavconn/serial.h>
 #include <mavconn/udp.h>
 #include <mavconn/tcp.h>
+#include <dalpu/power.h>
 #include <dalpu/aes.h>
 
 namespace mavconn {
@@ -53,6 +54,26 @@ MAVConnInterface::MAVConnInterface(uint8_t system_id, uint8_t component_id) :
 	conn_id = conn_id_counter.fetch_add(1);
 	std::call_once(init_flag, init_msg_entry);
 	using namespace std;
+	if (mavconn::dalpu_poweron_flag == false) {
+		mavconn::dalpu_poweron_flag = true;
+		dalpu_power_on();
+	}
+
+	uint8_t in[16] = {0, };
+	uint8_t out[16] = {0, };
+	if (1 == cipher_aes(DALPU_MODE_ECB, DALPU_ENCRYPT, key_hex, NULL, pt_hex, in, 16, out))
+	{
+		printf("ecrypt success!!!!    \n");
+	}
+
+	// if (1 == encyrpt_aes(DALPU_MODE_ECB, DALPU_DECRYPT, key_hex, NULL, ct_hex, in, 16, out))
+	// {
+
+	// }
+
+	printf("ecrypt is done!!!!!!!!!!!!! %d %d : %d %d \n",in[0], in[1], out[0], out[1]);
+	//
+
 	crc_map.insert(make_pair( 0  , 50 ));
 	crc_map.insert(make_pair( 1  , 124 ));
 	crc_map.insert(make_pair( 2  , 137 ));
@@ -275,6 +296,74 @@ MAVConnInterface::MAVConnInterface(uint8_t system_id, uint8_t component_id) :
 	crc_map.insert(make_pair( 42001  , 239 ));
 }
 
+void MAVConnInterface::byte2hex(const uint8_t *buf, int32_t buf_len, char *hex) {
+    int32_t i = 0;
+
+    if (buf_len == 0)
+        return;
+
+    for(i = 0; i < buf_len; i++){
+        sprintf(hex + i*2, "%02X", buf[i]);
+    }
+}
+
+void MAVConnInterface::hex2byte(const char *in, uint8_t *out) {
+    int32_t i;
+    int32_t len = strlen(in);
+    char c0, c1;
+    uint8_t c;
+
+    for(i = 0; i < len; i += 2) {
+        c0 = in[i+0];
+        c1 = in[i+1];
+
+        c = ( ((c0 & 0x40 ? (c0 & 0x20 ? c0 - 0x57 : c0 - 0x37) : c0 - 0x30) << 4) |
+                   ((c1 & 0x40 ? (c1 & 0x20 ? c1 - 0x57 : c1 - 0x37) : c1 - 0x30)) );
+
+        out[i/2] = c;
+    }
+}
+
+int MAVConnInterface::cipher_aes(dalpu_cipher_mode_t mode, dalpu_operation_t encdec, char *key_hex, char *iv_hex, char *in_hex, uint8_t* in, uint32_t in_len, uint8_t* out)
+{
+    int32_t ret = 0;
+    uint8_t key[32] = { 0x00, };
+    uint8_t iv[16] = { 0x00, };
+//    uint8_t in[1024] = { 0x00, };
+//    uint8_t out[1024] = { 0x00, };
+    uint32_t key_len = 0;
+    uint32_t iv_len = 0;
+//    uint32_t in_len = 0;
+    uint32_t out_len = in_len;
+    dalpu_aes_ctx ctx;
+
+    hex2byte(key_hex, key);
+    key_len = strlen(key_hex) / 2;
+
+    if (iv_hex != NULL) {
+        hex2byte(iv_hex, iv);
+        iv_len = strlen(iv_hex) / 2;
+    }
+
+    //hex2byte(in_hex, in);
+    //in_len = strlen(in_hex) / 2;
+    out_len = in_len;
+
+    ret = dalpu_aes_init(&ctx, key, key_len, iv, mode, encdec);
+    if (ret < 0) {
+        return 0;
+        printf("dalpu_aes_init failure!!!\n");
+    }
+
+    ret = dalpu_aes_cipher(&ctx, out, in, in_len);
+    if (ret < 0) {
+        return 0;
+        printf("dalpu_aes_cipher failure!!!\n");
+    }
+
+    return 1;
+}
+
 mavlink_status_t MAVConnInterface::get_status()
 {
 	return m_mavlink_status;
@@ -352,6 +441,30 @@ void MAVConnInterface::encrypt_and_crcupdate(mavlink::mavlink_message_t *msg)
 	//uint64_t check_value = msg->payload64[0] & 0xff;
 	//printf("메시지 초기값 : %lld", check_value);
 	uint16_t init_checksum = msg->checksum;
+	
+
+	////////////////
+	uint8_t size = msg->len;
+	uint8_t blocks_128bit = (uint8_t)size/16;
+	if (blocks_128bit > 0) {
+		uint8_t input[1024] = {0};
+		uint8_t output[1024] = {0};
+		uint8_t num_bytes = blocks_128bit * 16;
+		uint8_t* ptr = (uint8_t *)&(msg->payload64);
+		for(int i=0; i<num_bytes; i++) {
+			input[i] = *ptr;
+			ptr++;
+		}
+		if (1 == cipher_aes(DALPU_MODE_ECB, DALPU_ENCRYPT, key_hex, NULL, pt_hex, input, num_bytes, output))
+		{
+			printf("ecrypt success!!!!    \n");
+		}
+		uint8_t* ptr2 = (uint8_t *)&(msg->payload64);
+		for(int i=0; i<num_bytes; i++) {
+			ptr2[i] = output[i];
+		}
+	}
+	/////////////////////////////////
 	uint64_t firstItem = msg->payload64[0];
 	firstItem = firstItem ^ 0xff;
 	msg->payload64[0] = firstItem;
@@ -365,6 +478,30 @@ void MAVConnInterface::decrypt_and_crcupdate(mavlink::mavlink_message_t *msg)
 	//uint64_t check_value = msg->payload64[0] & 0xff;
 	//printf("메시지 초기값 : %lld", check_value);
 	uint16_t init_checksum = msg->checksum;
+	
+	////////////////
+	uint8_t size = msg->len;
+	uint8_t blocks_128bit = (uint8_t)size/16;
+	if (blocks_128bit > 0) {
+		uint8_t input[1024] = {0};
+		uint8_t output[1024] = {0};
+		uint8_t num_bytes = blocks_128bit * 16;
+		uint8_t* ptr = (uint8_t *)&(msg->payload64);
+		for(int i=0; i<num_bytes; i++) {
+			input[i] = *ptr;
+			ptr++;
+		}
+		if (1 == cipher_aes(DALPU_MODE_ECB, DALPU_DECRYPT, key_hex, NULL, ct_hex, input, num_bytes, output))
+		{
+			printf("decrypt success!!!!    \n");
+		}
+		uint8_t* ptr2 = (uint8_t *)&(msg->payload64);
+		for(int i=0; i<num_bytes; i++) {
+			ptr2[i] = output[i];
+		}
+	}
+	/////////////////////////////////
+
 	uint64_t firstItem = msg->payload64[0];
 	firstItem = firstItem ^ 0xff;
 	msg->payload64[0] = firstItem;
