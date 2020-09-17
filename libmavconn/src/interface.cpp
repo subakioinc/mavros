@@ -442,9 +442,16 @@ void MAVConnInterface::encrypt_and_crcupdate(mavlink::mavlink_message_t *msg)
 	//printf("메시지 초기값 : %lld", check_value);
 	uint16_t init_checksum = msg->checksum;
 	
-
+	DalpuPayload dp(msg->payload64, msg->len);
+	if (1 == cipher_aes(DALPU_MODE_ECB, DALPU_ENCRYPT, key_hex, NULL, pt_hex, dp.input, dp.getTotalChunkBytes(), dp.output))
+	{
+			printf("ecrypt success!!!!    \n");
+			dp.updateMessage(msg->payload64);
+	} else {
+		std::cout<<"encrypt fail!!! xxxx"<<std::endl;
+	}
 	////////////////
-	uint8_t size = msg->len;
+/* 	uint8_t size = msg->len;
 	uint8_t blocks_128bit = (uint8_t)size/16;
 	if (blocks_128bit > 0) {
 		uint8_t input[1024] = {0};
@@ -463,12 +470,12 @@ void MAVConnInterface::encrypt_and_crcupdate(mavlink::mavlink_message_t *msg)
 		for(int i=0; i<num_bytes; i++) {
 			ptr2[i] = output[i];
 		}
-	}
+	} */
 	/////////////////////////////////
-	uint64_t firstItem = msg->payload64[0];
+/* 	uint64_t firstItem = msg->payload64[0];
 	firstItem = firstItem ^ 0xff;
-	msg->payload64[0] = firstItem;
-	
+	msg->payload64[0] = firstItem; 
+*/	
 	crcupdate(msg);
 }
 
@@ -876,4 +883,42 @@ MAVConnInterface::Ptr MAVConnInterface::open_url(std::string url,
 	else
 		throw DeviceError("url", "Unknown URL type");
 }
+
+
+DalpuPayload::DalpuPayload(uint64_t* msg, uint8_t length) {
+    memset(input, 0, MAX_SIZE);
+    chunkCount = length / BIT128_TO_BYTES;
+    chunkTotalBytes = chunkCount * BIT128_TO_BYTES;
+
+    memcpy(input, (uint8_t *) msg, chunkTotalBytes);
+}
+
+bool DalpuPayload::compare_uint8(uint8_t* a, uint8_t* b, uint8_t size)
+{
+    for(int i=0; i<size; i++) {
+        if (a[i] != b[i]) {
+            std::cout<<"They're not same!! XXXXXX"<<std::endl;
+            return false;
+        }
+    }
+    std::cout<<"They're same! OOOOOO"<<std::endl;
+    return true;
+}
+bool DalpuPayload::compare_uint64(uint64_t* a, uint64_t* b, uint8_t size)
+{
+    for(int i=0; i<size; i++) {
+        if (a[i] != b[i]) {
+            std::cout<<"They're not same!! XXXXXX"<<std::endl;
+            return false;
+        }
+    }
+    std::cout<<"They're same! OOOOOO"<<std::endl;
+    return true;
+}
+
+void DalpuPayload::updateMessage(uint64_t* msg)
+{
+    memcpy((uint8_t *) msg, input, chunkTotalBytes);
+}
+
 }	// namespace mavconn
