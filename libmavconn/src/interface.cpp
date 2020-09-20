@@ -27,6 +27,13 @@
 #include <dalpu/power.h>
 #include <dalpu/aes.h>
 
+
+#define ENCRYPTION      0
+#define DECRYPTION      1
+void aes_cipher(unsigned char* out, unsigned char* in, unsigned char mode, unsigned int data_len);
+void aes_create(unsigned char*, int );
+void aes_destroy();
+
 namespace mavconn {
 #define PFX	"mavconn: "
 
@@ -59,9 +66,13 @@ MAVConnInterface::MAVConnInterface(uint8_t system_id, uint8_t component_id) :
 		dalpu_power_on();
 	}
 
+	for(int i=0; i<32; i++) {
+		key_hex[i] = i; 
+	}
+
 	uint8_t in[16] = {0, };
 	uint8_t out[16] = {0, };
-	if (1 == cipher_aes(DALPU_MODE_ECB, DALPU_ENCRYPT, key_hex, NULL, pt_hex, in, 16, out))
+	if (1 == cipher_aes(DALPU_MODE_ECB, DALPU_ENCRYPT, key_hex, NULL, in, 16, out))
 	{
 		printf("ecrypt success!!!!    \n");
 	}
@@ -324,7 +335,7 @@ void MAVConnInterface::hex2byte(const char *in, uint8_t *out) {
     }
 }
 
-int MAVConnInterface::cipher_aes(dalpu_cipher_mode_t mode, dalpu_operation_t encdec, char *key_hex, char *iv_hex, char *in_hex, uint8_t* in, uint32_t in_len, uint8_t* out)
+int MAVConnInterface::cipher_aes(dalpu_cipher_mode_t mode, dalpu_operation_t encdec, const uint8_t* key_hex, char *iv_hex, uint8_t* in, uint32_t in_len, uint8_t* out)
 {
     int32_t ret = 0;
     uint8_t key[32] = { 0x00, };
@@ -337,8 +348,10 @@ int MAVConnInterface::cipher_aes(dalpu_cipher_mode_t mode, dalpu_operation_t enc
     uint32_t out_len = in_len;
     dalpu_aes_ctx ctx;
 
-    hex2byte(key_hex, key);
-    key_len = strlen(key_hex) / 2;
+    memcpy(key, key_hex, 32);
+	//hex2byte(key_hex, key);
+    key_len = 32; //key_len = strlen(key_hex) / 2;
+
 
     if (iv_hex != NULL) {
         hex2byte(iv_hex, iv);
@@ -347,7 +360,7 @@ int MAVConnInterface::cipher_aes(dalpu_cipher_mode_t mode, dalpu_operation_t enc
 
     //hex2byte(in_hex, in);
     //in_len = strlen(in_hex) / 2;
-    out_len = in_len;
+    //out_len = in_len;
 
     ret = dalpu_aes_init(&ctx, key, key_len, iv, mode, encdec);
     if (ret < 0) {
@@ -421,10 +434,17 @@ void MAVConnInterface::parse_buffer(const char *pfx, uint8_t *buf, const size_t 
 
 			if (message_received_cb)
 			{
-				if(communication_type ==0) { //serial (PX4 -> mavros)
-					encrypt_and_crcupdate(&message);
-				} else if (communication_type = 1) { // UDP (QGC -> mavros)
-					decrypt_and_crcupdate(&message);
+				if(communication_type ==0) { //serial (PX4 -> mavros -> QGC)					
+					encrypt_and_crcupdate2(&message);
+				} else if (communication_type = 1) { // UDP (QGC -> mavros -> PX4)
+					rx_px_set.insert(message.msgid);
+					
+					decrypt_and_crcupdate2(&message);
+					std::cout<<"msgID : "<<(uint32_t)message.msgid<<" Plain : ";
+					for (auto&& data : rx_px_set) {
+						std::cout << data << " ";
+					}
+					std::cout<<std::endl;
 				} else {  // TCP nothing to do 
 
 				}
@@ -433,25 +453,96 @@ void MAVConnInterface::parse_buffer(const char *pfx, uint8_t *buf, const size_t 
 		}
 	}
 }
+void MAVConnInterface::encrypt_and_crcupdate2(mavlink::mavlink_message_t *msg)
+{
+	
+/* 	uint8_t input[1024] = {0};
+	memcpy(input, msg->payload64, (uint32_t)msg->len);
+	std::cout<<"Size : "<<(uint32_t)msg->len<<" ID: "<<(uint32_t)msg->msgid<< " ";
+	for(int i = 0; i<msg->len; i++) {
+		std::cout<< (uint32_t)input[i] << " ";
+	}
+	std::cout<<std::endl; */
 
+	DalpuPayload dp(msg->payload64, msg->len);
+	if (dp.getTotalChunkBytes() > 0)
+	{
+		// uint8_t input[1024] = {0};
+		// memcpy(input, msg->payload64, (uint32_t)msg->len);
+		// std::cout<<"Size : "<<(uint32_t)msg->len<<" ID: "<<(uint32_t)msg->msgid<< " ";
+		// for(int i=0; i<msg->len; i++){
+		// 	std::cout<<(uint32_t)input[i]<<" ";
+		// }
+		// std::cout<<std::endl;
+
+		aes_create(key_hex, 128);
+				
+		aes_cipher(dp.output, dp.input, ENCRYPTION, dp.getTotalChunkBytes());
+		dp.updateMessage(msg->payload64);
+		aes_destroy();
+		crcupdate(msg);
+	}
+	
+}
+
+void MAVConnInterface::decrypt_and_crcupdate2(mavlink::mavlink_message_t *msg)
+{
+	DalpuPayload dp(msg->payload64, msg->len);
+	if (dp.getTotalChunkBytes() > 0)
+	{
+		aes_create(key_hex, 128);
+				
+		aes_cipher(dp.output, dp.input, DECRYPTION, dp.getTotalChunkBytes());
+		dp.updateMessage(msg->payload64);
+		aes_destroy();
+		crcupdate(msg);
+	}
+	
+}
 
 void MAVConnInterface::encrypt_and_crcupdate(mavlink::mavlink_message_t *msg)
 {
 	//printf("처음 : msg->payload64, msg->crc : %lld , %d \n", msg->payload64[0], msg->checksum);
 	//uint64_t check_value = msg->payload64[0] & 0xff;
 	//printf("메시지 초기값 : %lld", check_value);
-	uint16_t init_checksum = msg->checksum;
-	
+
 	DalpuPayload dp(msg->payload64, msg->len);
-	if (1 == cipher_aes(DALPU_MODE_ECB, DALPU_ENCRYPT, key_hex, NULL, pt_hex, dp.input, dp.getTotalChunkBytes(), dp.output))
+	//DalpuPayload dp2(msg->payload64, msg->len);
+	//printf("total chunk bytes:  %d  \n", (uint32_t)dp.getTotalChunkBytes());
+	//std::cout<<"chunk bytes : "<<(uint32_t)dp.getTotalChunkBytes()<<std::endl;
+	if (dp.getTotalChunkBytes() > 0)
 	{
-			printf("ecrypt success!!!!    \n");
-			dp.updateMessage(msg->payload64);
-	} else {
-		std::cout<<"encrypt fail!!! xxxx"<<std::endl;
+		if ( 1 == cipher_aes(DALPU_MODE_ECB, DALPU_ENCRYPT, key_hex, NULL, dp.input, dp.getTotalChunkBytes(), dp.output))
+		{
+				dp.updateMessage(msg->payload64);
+				crcupdate(msg);
+				//DalpuPayload dp2(msg->payload64, msg->len);
+				
+				/* aes_create(key_hex, 128);
+				
+				//DalpuPayload dp2(msg->payload64, msg->len);
+				DalpuPayload dp3(msg->payload64, msg->len);
+
+				if(dp2.getTotalChunkBytes() > 0)
+				{
+					aes_cipher(dp2.output, dp2.input, ENCRYPTION, dp2.getTotalChunkBytes());
+					//aes_cipher(dp3.output, dp2.output, DECRYPTION, dp3.getTotalChunkBytes());
+					dp2.compare_uint8(dp2.output, dp.input, dp2.getTotalChunkBytes());
+				}
+
+				aes_destroy(); */
+				
+		} else {
+			std::cout<<"encrypt fail!!! xxxx"<<std::endl;
+		}
+	} else
+	{
+
 	}
 	////////////////
-/* 	uint8_t size = msg->len;
+/* 	
+	uint16_t init_checksum = msg->checksum;
+	uint8_t size = msg->len;
 	uint8_t blocks_128bit = (uint8_t)size/16;
 	if (blocks_128bit > 0) {
 		uint8_t input[1024] = {0};
@@ -472,11 +563,9 @@ void MAVConnInterface::encrypt_and_crcupdate(mavlink::mavlink_message_t *msg)
 		}
 	} */
 	/////////////////////////////////
-/* 	uint64_t firstItem = msg->payload64[0];
-	firstItem = firstItem ^ 0xff;
-	msg->payload64[0] = firstItem; 
-*/	
-	crcupdate(msg);
+ 	// uint64_t firstItem = msg->payload64[0];
+	// firstItem = firstItem ^ 0xff;
+	// msg->payload64[0] = firstItem;
 }
 
 void MAVConnInterface::decrypt_and_crcupdate(mavlink::mavlink_message_t *msg)
@@ -484,10 +573,50 @@ void MAVConnInterface::decrypt_and_crcupdate(mavlink::mavlink_message_t *msg)
 	//printf("처음 : msg->payload64, msg->crc : %lld , %d \n", msg->payload64[0], msg->checksum);
 	//uint64_t check_value = msg->payload64[0] & 0xff;
 	//printf("메시지 초기값 : %lld", check_value);
-	uint16_t init_checksum = msg->checksum;
-	
+
+	DalpuPayload dp(msg->payload64, msg->len);
+
+	if (dp.getTotalChunkBytes() > 0)
+	{
+		if ( 1 == cipher_aes(DALPU_MODE_ECB, DALPU_DECRYPT, key_hex, NULL, dp.input, dp.getTotalChunkBytes(), dp.output))
+		{
+				dp.updateMessage(msg->payload64);
+				crcupdate(msg);
+				//DalpuPayload dp2(msg->payload64, msg->len);
+				
+				/* aes_create(key_hex, 128);
+				
+				//DalpuPayload dp2(msg->payload64, msg->len);
+				DalpuPayload dp3(msg->payload64, msg->len);
+
+				if(dp2.getTotalChunkBytes() > 0)
+				{
+					aes_cipher(dp2.output, dp2.input, ENCRYPTION, dp2.getTotalChunkBytes());
+					//aes_cipher(dp3.output, dp2.output, DECRYPTION, dp3.getTotalChunkBytes());
+					dp2.compare_uint8(dp2.output, dp.input, dp2.getTotalChunkBytes());
+				}
+
+				aes_destroy(); */
+				
+		} else {
+			std::cout<<"encrypt fail!!! xxxx"<<std::endl;
+		}
+	} else
+	{
+
+	}
+
+	/* aes_create(key_hex, 128);
+	if(dp.getTotalChunkBytes() > 0)
+	{
+		aes_cipher(dp.input, dp.output, DECRYPTION, dp.getTotalChunkBytes());
+		dp.updateMessage(msg->payload64);
+	}
+
+	aes_destroy(); */
+
 	////////////////
-	uint8_t size = msg->len;
+/* 	uint8_t size = msg->len;
 	uint8_t blocks_128bit = (uint8_t)size/16;
 	if (blocks_128bit > 0) {
 		uint8_t input[1024] = {0};
@@ -507,13 +636,11 @@ void MAVConnInterface::decrypt_and_crcupdate(mavlink::mavlink_message_t *msg)
 			ptr2[i] = output[i];
 		}
 	}
-	/////////////////////////////////
+ */	/////////////////////////////////
 
-	uint64_t firstItem = msg->payload64[0];
-	firstItem = firstItem ^ 0xff;
-	msg->payload64[0] = firstItem;
-	
-	crcupdate(msg);
+ 	// uint64_t firstItem = msg->payload64[0];
+	// firstItem = firstItem ^ 0xff;
+	// msg->payload64[0] = firstItem; 
 }
 
 
@@ -918,7 +1045,7 @@ bool DalpuPayload::compare_uint64(uint64_t* a, uint64_t* b, uint8_t size)
 
 void DalpuPayload::updateMessage(uint64_t* msg)
 {
-    memcpy((uint8_t *) msg, input, chunkTotalBytes);
+    memcpy((uint8_t *) msg, output, chunkTotalBytes);
 }
 
 }	// namespace mavconn

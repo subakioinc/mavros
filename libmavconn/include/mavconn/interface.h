@@ -35,6 +35,7 @@
 #include <stdexcept>
 #include <unordered_map>
 #include <map>
+#include <set>
 #include <mavconn/mavlink_dialect.h>
 #include <dalpu/cipher.h>
 
@@ -96,10 +97,17 @@ public:
  * @brief Generic mavlink interface
  */
 class MAVConnInterface {
+public:
+	//neowine
+	void encrypt_and_crcupdate(mavlink::mavlink_message_t *msg);
+	void decrypt_and_crcupdate(mavlink::mavlink_message_t *msg);
+	void encrypt_and_crcupdate2(mavlink::mavlink_message_t *msg);
+	void decrypt_and_crcupdate2(mavlink::mavlink_message_t *msg);
+
 private:
 	MAVConnInterface(const MAVConnInterface&) = delete;
 	std::map< uint16_t, uint8_t > crc_map;
-
+	std::set<int> rx_cx_set, rx_px_set;
 public:
 	using ReceivedCb = std::function<void (const mavlink::mavlink_message_t *message, const Framing framing)>;
 	using ClosedCb = std::function<void (void)>;
@@ -241,11 +249,12 @@ public:
 
 	static std::vector<std::string> get_known_dialects();
 
-	static constexpr char *key_hex = "31313131313131313131313131313131";
+	//static constexpr char *key_hex = "31313131313131313131313131313131";
+	//static constexpr uint8_t key_hex[32] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f};
     static constexpr char *iv_hex =  "31313131313131313131313131313131";
-	static constexpr char *pt_hex = "31313131313131313131313131313131313131313131313131313131313131313232323232323232323232323232323233333333333333333333333333333333";
-    static constexpr char *ct_hex = "AD0110483D0559D12E8CB97203E6C908AD0110483D0559D12E8CB97203E6C9083288A984DD06FF58E93960B1DEC50F1E1B50B29FCA54A8D0B35D1179DC25ABC3";
-
+	//static constexpr char *pt_hex = "31313131313131313131313131313131313131313131313131313131313131313232323232323232323232323232323233333333333333333333333333333333";
+    //static constexpr char *ct_hex = "AD0110483D0559D12E8CB97203E6C908AD0110483D0559D12E8CB97203E6C9083288A984DD06FF58E93960B1DEC50F1E1B50B29FCA54A8D0B35D1179DC25ABC3";
+	uint8_t key_hex[32];
 protected:
 	uint8_t sys_id;		//!< Connection System Id
 	uint8_t comp_id;	//!< Connection Component Id
@@ -275,10 +284,7 @@ protected:
 	 */
 	void parse_buffer(const char *pfx, uint8_t *buf, const size_t bufsize, size_t bytes_received);
 
-	//neowine
-	void encrypt_and_crcupdate(mavlink::mavlink_message_t *msg);
-	void decrypt_and_crcupdate(mavlink::mavlink_message_t *msg);
-
+	
 	void iostat_tx_add(size_t bytes);
 	void iostat_rx_add(size_t bytes);
 
@@ -349,5 +355,6 @@ class DalpuPayload {
           }
           std::cout<<std::endl;
       }
+
 };
 }	// namespace mavconn

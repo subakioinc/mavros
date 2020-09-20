@@ -140,14 +140,14 @@ MavRos::MavRos() :
 
 	// XXX TODO: move workers to ROS Spinner, let mavconn threads to do only IO
 	fcu_link->message_received_cb = [this](const mavlink_message_t *msg, const Framing framing) {
-		mavlink_pub_cb(msg, framing);
-		plugin_route_cb(msg, framing);
+		// mavlink_pub_cb(msg, framing);
+		// plugin_route_cb(msg, framing);
 
 		if (gcs_link) {
-			if (this->gcs_quiet_mode && msg->msgid != mavlink::common::msg::HEARTBEAT::MSG_ID &&
+			/* if (this->gcs_quiet_mode && msg->msgid != mavlink::common::msg::HEARTBEAT::MSG_ID &&
 				(ros::Time::now() - this->last_message_received_from_gcs > this->conn_timeout)) {
 				return;
-			}
+			} */
 
 			gcs_link->send_message_ignore_drop(msg);
 		}
@@ -161,7 +161,7 @@ MavRos::MavRos() :
 	if (gcs_link) {
 		// setup GCS link bridge
 		gcs_link->message_received_cb = [this, fcu_link](const mavlink_message_t *msg, const Framing framing) {
-			this->last_message_received_from_gcs = ros::Time::now();
+			//this->last_message_received_from_gcs = ros::Time::now();
 			fcu_link->send_message_ignore_drop(msg);
 		};
 
