@@ -147,7 +147,7 @@ void dalpu_power_on(void) {
     write_val(CS1, 1);
 #endif
 
-    dalpu_spi_open(0, 500000, 0);
+    dalpu_spi_open(0, 12000000, 0);
 
     dalpu_spi_open(1, 250000, 1);
 

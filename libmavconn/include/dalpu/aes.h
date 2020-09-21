@@ -9,7 +9,7 @@
 extern "C" {
 #endif
 
-extern char *cipher_mode_str(dalpu_cipher_mode_t); 
+extern char *cipher_mode_str(dalpu_cipher_mode_t);
 
 typedef struct {
     dalpu_operation_t encdec;

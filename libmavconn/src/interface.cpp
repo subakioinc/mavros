@@ -434,7 +434,7 @@ void MAVConnInterface::parse_buffer(const char *pfx, uint8_t *buf, const size_t 
 
 			if (message_received_cb)
 			{
-				if(communication_type ==0) { //serial (PX4 -> mavros -> QGC)					
+				 if(communication_type ==0) { //serial (PX4 -> mavros -> QGC)					
 					encrypt_and_crcupdate2(&message);
 				} else if (communication_type = 1) { // UDP (QGC -> mavros -> PX4)
 					rx_px_set.insert(message.msgid);

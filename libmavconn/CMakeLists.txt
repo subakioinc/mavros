@@ -48,10 +48,10 @@ add_library(mavconn
   src/serial.cpp
   src/tcp.cpp
   src/udp.cpp
-  src/aes128.cpp  
+  src/aes128.cpp
 )
 
-add_library(mavros_dalpu_crypto STATIC 
+add_library(mavros_dalpu_crypto STATIC
   src/dalpu/aes.c
   src/dalpu/aes_aria.c
   src/dalpu/aria.c

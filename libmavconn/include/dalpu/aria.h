@@ -8,7 +8,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
+    
 extern char *cipher_mode_str(dalpu_cipher_mode_t);
 
 typedef struct {
