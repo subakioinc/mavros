@@ -435,11 +435,11 @@ void MAVConnInterface::parse_buffer(const char *pfx, uint8_t *buf, const size_t 
 			if (message_received_cb)
 			{
 				 if(communication_type ==0) { //serial (PX4 -> mavros -> QGC)					
-					encrypt_and_crcupdate2(&message);
+					encrypt_and_crcupdate(&message);
 				} else if (communication_type = 1) { // UDP (QGC -> mavros -> PX4)
 					rx_px_set.insert(message.msgid);
 					
-					decrypt_and_crcupdate2(&message);
+					decrypt_and_crcupdate(&message);
 					std::cout<<"msgID : "<<(uint32_t)message.msgid<<" Plain : ";
 					for (auto&& data : rx_px_set) {
 						std::cout << data << " ";
@@ -475,7 +475,7 @@ void MAVConnInterface::encrypt_and_crcupdate2(mavlink::mavlink_message_t *msg)
 		// }
 		// std::cout<<std::endl;
 
-		aes_create(key_hex, 128);
+		aes_create(key_hex, 256);
 				
 		aes_cipher(dp.output, dp.input, ENCRYPTION, dp.getTotalChunkBytes());
 		dp.updateMessage(msg->payload64);
@@ -490,7 +490,7 @@ void MAVConnInterface::decrypt_and_crcupdate2(mavlink::mavlink_message_t *msg)
 	DalpuPayload dp(msg->payload64, msg->len);
 	if (dp.getTotalChunkBytes() > 0)
 	{
-		aes_create(key_hex, 128);
+		aes_create(key_hex, 256);
 				
 		aes_cipher(dp.output, dp.input, DECRYPTION, dp.getTotalChunkBytes());
 		dp.updateMessage(msg->payload64);
